@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production Spec Sheet — AI Collective</title>
+<link rel="stylesheet" href="css/style.css">
+
+</head>
+<body>
+
+<div class="header">
+  <span class="header-co">AI Collective</span>
+  <div class="header-sep"></div>
+  <span class="header-title">Production Spec Sheet</span>
+  <div class="header-mode">
+    <span class="mode-badge" id="modeBadge">Client</span>
+    <button class="mode-toggle" id="modeToggleBtn" onclick="toggleMode()">Switch to Admin</button>
+  </div>
+</div>
+<div class="progress-wrap"><div class="progress-fill" id="progressFill" style="width:14.2%"></div></div>
+
+<div class="step-tabs" id="stepTabs"></div>
+
+<div class="form-body">
+
+<!-- ══════════════════════════════════════════════════
+     STEP 1 — PROJECT BASICS
+══════════════════════════════════════════════════ -->
+<div class="step-pane active" id="pane1">
+  <h2 class="step-heading">Project basics</h2>
+  <p class="step-sub">Core project info and all points of contact.</p>
+
+  <div class="admin-panel" id="adminPanel1" style="display:none">
+    <h4>Admin — pre-fill & lock</h4>
+    <p style="font-size:12px;color:#555;margin-bottom:10px">Fields you fill will be pre-populated for the client. Lock a field to prevent editing.</p>
+    <div id="lockList1"></div>
+  </div>
+
+  <div class="field">
+    <label>Date <span class="req">*</span></label>
+    <input type="date" id="date">
+  </div>
+  <div class="two-col">
+    <div class="field"><label>Client <span class="req">*</span></label><input type="text" id="client" placeholder="e.g. Dabur India Ltd."></div>
+    <div class="field"><label>Product / Brand <span class="req">*</span></label><input type="text" id="brand" placeholder="e.g. Dabur Lal Tail"></div>
+  </div>
+  <div class="field"><label>Project title <span class="req">*</span></label><input type="text" id="projectTitle" placeholder="e.g. Summer 2025 TVC — 30s"></div>
+
+  <div class="spoc-block"><h4>Client SPOC</h4><div class="three-col"><input type="text" id="spocCN" placeholder="Name"><input type="tel" id="spocCP" placeholder="Phone"><input type="email" id="spocCE" placeholder="Email"></div></div>
+  <div class="spoc-block"><h4>Agency SPOC</h4><div class="three-col"><input type="text" id="spocAN" placeholder="Name"><input type="tel" id="spocAP" placeholder="Phone"><input type="email" id="spocAE" placeholder="Email"></div></div>
+  <div class="spoc-block"><h4>Internal SPOC (AiC)</h4><div class="three-col"><input type="text" id="spocIN" placeholder="Name"><input type="tel" id="spocIP" placeholder="Phone"><input type="email" id="spocIE" placeholder="Email"></div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     STEP 2 — SCRIPT & CREATIVE
+══════════════════════════════════════════════════ -->
+<div class="step-pane" id="pane2">
+  <h2 class="step-heading">Script & creative</h2>
+  <p class="step-sub">Upload or paste your master film script. Down-edit scripts are optional — if skipped, we'll suggest a cut-down for you to approve.</p>
+
+  <div class="admin-panel" id="adminPanel2" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList2"></div></div>
+
+  <div class="section">
+    <div class="section-label">Master film script</div>
+    <div class="script-tabs">
+      <button class="script-tab active" onclick="switchScriptTab('master','paste')">Paste / type</button>
+      <button class="script-tab" onclick="switchScriptTab('master','upload')">Upload file</button>
+    </div>
+    <div class="script-pane active" id="master-paste">
+      <textarea id="masterScript" rows="8" placeholder="INT. KITCHEN — MORNING&#10;&#10;A mother prepares breakfast. Her son runs in, energetic..." oninput="checkDurationMismatch()"></textarea>
+    </div>
+    <div class="script-pane" id="master-upload">
+      <div class="file-drop" onclick="document.getElementById('masterScriptFile').click()">
+        <div class="fd-icon">📄</div>
+        <div class="fd-label">Click to upload script<br><span style="font-size:11px">PDF, DOCX, or TXT</span></div>
+        <div class="fd-name" id="masterScriptFileName"></div>
+        <input type="file" id="masterScriptFile" accept=".pdf,.docx,.txt" onchange="setFileName('masterScriptFileName',this)">
+      </div>
+    </div>
+    <div class="duration-flag" id="durationFlag">
+      <strong>⚠ Duration mismatch detected.</strong> Based on the word count in your script, the estimated runtime is <span id="estDuration">—</span>, but you've specified <span id="specDuration">—</span>. Please verify with your <strong>AiC SPOC</strong> before submission.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Down-edit scripts <span style="font-size:11px;font-weight:400;color:#bbb;margin-left:6px">optional</span></div>
+    <div class="hint">Down edits are <strong>cut-downs only</strong> — no new shots, voiceover, or produced elements. Only lines and scenes from the master script.</div>
+    <div id="downEditScriptWindows"></div>
+    <button class="dubbed-add-btn" onclick="addDownEditScriptWindow()" id="addDEScriptBtn" style="margin-top:8px">+ Add down-edit script</button>
+    <div class="de-suggest" id="deSuggestBox" style="display:none">
+      <p><strong>No down-edit script provided.</strong> Based on your master script, here's a suggested cut-down to review and adjust:<br><br><em id="deSuggestText" style="color:#1a4a2a;display:block;margin-top:4px;line-height:1.7"></em></p>
+      <div class="de-suggest-actions">
+        <button class="de-suggest-btn de-suggest-use" onclick="acceptDESuggest()">Use this ✓</button>
+        <button class="de-suggest-btn de-suggest-tweak" onclick="tweakDESuggest()">Message AiC to adjust ✉</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     STEP 3 — DELIVERABLE SPECS
+══════════════════════════════════════════════════ -->
+<div class="step-pane" id="pane3">
+  <h2 class="step-heading">Deliverable specs</h2>
+  <p class="step-sub">Platforms, film count, resolution, and language.</p>
+
+  <div class="admin-panel" id="adminPanel3" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList3"></div></div>
+
+  <div class="field">
+    <label>Publishing rights <span class="req">*</span></label>
+    <div class="hint">Select all platforms this content will air on.</div>
+    <div class="check-grid" id="pubRights">
+      <label class="check-chip"><input type="checkbox" value="TV"><span>📺 TV</span></label>
+      <label class="check-chip"><input type="checkbox" value="Social Media"><span>📱 Social Media</span></label>
+      <label class="check-chip"><input type="checkbox" value="OTT"><span>▶️ OTT</span></label>
+      <label class="check-chip"><input type="checkbox" value="Cinema"><span>🎬 Cinema</span></label>
+      <label class="check-chip"><input type="checkbox" value="Internal"><span>🔒 Internal only</span></label>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="field"><label>No. of films <span class="req">*</span></label>
+      <select id="numFilms"><option value="">Select</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10+</option></select>
+    </div>
+    <div class="field"><label>Resolution <span class="req">*</span></label>
+      <select id="resolution"><option value="">Select</option><option value="4K">4K (3840×2160)</option><option value="2K">2K (2048×1080)</option><option value="1080p">1080p HD</option><option value="720p">720p HD</option></select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Primary language <span class="req">*</span></label>
+    <div class="search-select-wrap" id="primaryLangWrap">
+      <input type="text" class="search-select-input" id="primaryLangDisplay" placeholder="Search and select language..." readonly onclick="toggleSearchSelect('primaryLang')">
+      <input type="hidden" id="primaryLang">
+      <div class="search-select-dropdown" id="primaryLangDD">
+        <div class="search-select-search"><input type="text" placeholder="Search..." oninput="filterSearchSelect('primaryLang',this.value)" id="primaryLangSearch"></div>
+        <div class="search-select-list" id="primaryLangList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="toggle-row" style="margin-bottom:8px">
+      <label class="toggle"><input type="checkbox" id="contempToggle" onchange="toggleContemp(this.checked)"><span class="tslider"></span></label>
+      <span class="toggle-lbl">Contemporary flavour (Hinglish / Benglish / etc.)</span>
+    </div>
+    <div class="hint" id="contempHint" style="display:none">The script mixes the primary language with English for a modern, urban feel. Specify the blend:</div>
+    <input type="text" id="contempSpec" style="display:none" placeholder="e.g. 70% Hindi / 30% English — metro youth tone">
+  </div>
+
+  <div class="field">
+    <label>Other dubbed language versions</label>
+    <div class="hint">Each window = one language version of the film.</div>
+    <div class="dubbed-windows" id="dubbedWindows"></div>
+    <button class="dubbed-add-btn" onclick="addDubbedWindow()" id="addDubbedBtn">+ Add language version</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     STEP 4 — MASTER FILM SPECS
+══════════════════════════════════════════════════ -->
+<div class="step-pane" id="pane4">
+  <h2 class="step-heading">Master film</h2>
+  <p class="step-sub">Duration, aspect ratio, and all the formats this master adapts to.</p>
+
+  <div class="admin-panel" id="adminPanel4" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList4"></div></div>
+
+  <div class="two-col">
+    <div class="field">
+      <label>Master film duration <span class="req">*</span></label>
+      <div class="hint">Select runtime in 5-second increments.</div>
+      <select id="filmDuration" onchange="checkDurationMismatch()">
+        <option value="">Select duration</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>No. of down edits</label>
+      <select id="numDownEdits"><option value="">Select</option><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option></select>
+    </div>
+  </div>
+
+  <div class="duration-flag" id="durationFlag2">
+    <strong>⚠ Duration mismatch.</strong> Estimated script runtime: <span id="estDuration2">—</span> vs your selected <span id="specDuration2">—</span>. Please verify with your <strong>AiC SPOC</strong>.
+  </div>
+
+  <div class="field" style="margin-top:20px">
+    <label>Master film aspect ratio <span class="req">*</span></label>
+    <div class="hint">Select the primary format for this master film.</div>
+    <div class="ar-grid" id="masterARGrid"></div>
+  </div>
+
+  <div class="field" style="margin-top:24px">
+    <label>Master film adapts to</label>
+    <div class="hint">Select all aspect ratio adaptations needed from this master. No new shots or production — purely reframed/cropped versions.</div>
+    <div class="ar-grid" id="adaptARGrid"></div>
+  </div>
+
+  <div class="field" style="margin-top:24px">
+    <label>Down edit aspect ratios</label>
+    <div class="hint">Select all cut-down formats needed.</div>
+    <div class="ar-grid" id="downEditARGrid"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     STEP 5 — SUBTITLES
+══════════════════════════════════════════════════ -->
+<div class="step-pane" id="pane5">
+  <h2 class="step-heading">Subtitles</h2>
+  <p class="step-sub">Set subtitle requirements and preview how they'll appear on screen.</p>
+
+  <div class="admin-panel" id="adminPanel5" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList5"></div></div>
+
+  <div class="field">
+    <label>Subtitles required?</label>
+    <div class="toggle-row">
+      <label class="toggle"><input type="checkbox" id="subtitleToggle" onchange="toggleSubtitles(this.checked)"><span class="tslider"></span></label>
+      <span class="toggle-lbl" id="subToggleLbl">No</span>
+    </div>
+  </div>
+
+  <div id="subtitleSection" style="display:none">
+    <div class="field">
+      <label>Subtitle size</label>
+      <div class="hint">Drag to preview on the film frame below.</div>
+      <input type="range" min="12" max="36" value="20" id="subtitleSize" oninput="updateSubPreview()">
+      <div class="sub-preview-frame" style="aspect-ratio:16/9">
+        <div class="scene-bg"><span style="color:rgba(255,255,255,.08);font-size:13px">film frame</span></div>
+        <div class="sub-text-demo" id="subDemo" style="font-size:20px;background:rgba(0,0,0,.55)">यह आपके सब्टाइटल का प्रीव्यू है — This is your subtitle preview</div>
+      </div>
+      <p style="font-size:12px;color:#999;margin-top:6px">Size: <strong id="subSizeLbl">20px</strong></p>
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Subtitle font</label>
+        <select id="subtitleFont" onchange="updateSubPreview()">
+          <option value="Arial,sans-serif">Arial — universal</option>
+          <option value="'Noto Sans',sans-serif">Noto Sans — multi-script ✓</option>
+          <option value="'Roboto',sans-serif">Roboto</option>
+          <option value="'Helvetica Neue',sans-serif">Helvetica Neue</option>
+          <option value="'Georgia',serif">Georgia — editorial</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Subtitle style</label>
+        <select id="subtitleStyleSel" onchange="updateSubPreview()">
+          <option value="box">Dark box bg</option>
+          <option value="plain">White plain</option>
+          <option value="outline">Outlined</option>
+          <option value="yellow">Yellow</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     STEP 6 — BRAND IDENTITY
+══════════════════════════════════════════════════ -->
+<div class="step-pane" id="pane6">
+  <h2 class="step-heading">Brand identity</h2>
+  <p class="step-sub">Brand assets and logo placement — with best practice guidance for each format.</p>
+
+  <div class="admin-panel" id="adminPanel6" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList6"></div></div>
+
+  <div class="two-col">
+    <div class="field">
+      <label>Brand logo</label>
+      <div class="file-drop" onclick="document.getElementById('logoFile').click()">
+        <div class="fd-icon">🖼</div>
+        <div class="fd-label">PNG (transparent preferred)<br><span style="font-size:11px">or SVG / AI / EPS</span></div>
+        <div class="fd-name" id="logoFileName"></div>
+        <input type="file" id="logoFile" accept=".png,.svg,.jpg,.ai,.eps" onchange="setFileName('logoFileName',this)">
+      </div>
+    </div>
+    <div class="field">
+      <label>Product packaging</label>
+      <div class="file-drop" onclick="document.getElementById('packFile').click()">
+        <div class="fd-icon">📦</div>
+        <div class="fd-label">All sides if available<br><span style="font-size:11px">PNG / PDF / AI</span></div>
+        <div class="fd-name" id="packFileName"></div>
+        <input type="file" id="packFile" accept=".png,.jpg,.pdf,.ai,.eps" onchange="setFileName('packFileName',this)">
+      </div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="field">
+      <label>Brand font</label>
+      <div class="file-drop" onclick="document.getElementById('fontFile').click()">
+        <div class="fd-icon">🔤</div>
+        <div class="fd-label">TTF / OTF / WOFF</div>
+        <div class="fd-name" id="fontFileName"></div>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2" onchange="setFileName('fontFileName',this)">
+      </div>
+    </div>
+    <div class="field">
+      <label>Brand colour</label>
+      <div class="color-row" style="margin-top:6px">
+        <div class="color-swatch" id="colorSwatch" style="background:#E63329" onclick="document.getElementById('colorPicker').click()"></div>
+        <input type="color" id="colorPicker" value="#E63329" oninput="updateColor(this.value)">
+        <input type="text" id="colorHex" value="#E63329" placeholder="#HEX" oninput="updateColorFromHex(this.value)" maxlength="7" style="flex:1">
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Logo placement</label>
+    <div class="hint" id="logoPosHint">Select placement. Best practices shown based on your selected aspect ratio.</div>
+    <div class="logo-grid" id="logoPosGrid"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     STEP 7 — PRODUCTION PIPELINE
+══════════════════════════════════════════════════ -->
+<div class="step-pane" id="pane7">
+  <h2 class="step-heading">Production pipeline</h2>
+  <p class="step-sub">Tag each production element as AI-generated, Human-produced, or Not applicable.</p>
+
+  <div class="admin-panel" id="adminPanel7" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList7"></div></div>
+
+  <div class="ai-grid" id="aiGrid"></div>
+
+  <div class="field" style="margin-top:28px">
+    <label>Additional notes</label>
+    <textarea id="additionalNotes" placeholder="References, mood boards, brand guidelines, special requirements..."></textarea>
+  </div>
+</div>
+
+<!-- REVIEW + CONFIRM PANE -->
+<div class="success-pane" id="reviewPane">
+  <div style="text-align:left;max-width:560px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-size:32px;margin-bottom:10px">&#127916;</div>
+      <h2 style="font-size:22px;font-weight:500;margin-bottom:6px">Before we roll camera &mdash;</h2>
+      <p style="font-size:14px;color:#888;line-height:1.5">Here's everything you've locked in.<br>Give it one last read. This spec goes straight to production.</p>
+    </div>
+    <div id="reviewCards" style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px"></div>
+    <div style="background:#fff8ed;border:1px solid #f5c842;border-radius:10px;padding:16px 18px;margin-bottom:24px">
+      <div style="font-size:13px;font-weight:700;color:#7a5c00;margin-bottom:6px">&#9888; Once you confirm, this is locked.</div>
+      <div style="font-size:13px;color:#7a5c00;line-height:1.6">
+        This spec sheet will be <strong>mailed directly to the AI Collective production team</strong> and your registered email.
+        No edits after this point &mdash; the brief goes live into production.
+        If you need a change after submission, contact your <strong>AiC SPOC</strong> &mdash; only they can unlock and amend.
+      </div>
+    </div>
+    <div style="text-align:center">
+      <p style="font-size:12px;color:#bbb;margin-bottom:14px">By clicking below, you confirm this brief is final and accurate.</p>
+      <button onclick="confirmAndSend()" style="background:#111;color:#fff;border:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit" >
+        Yes, lock it &amp; send to production &#8594;
+      </button>
+      <div style="margin-top:14px">
+        <button onclick="goBackFromReview()" style="background:none;border:none;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline">Go back and edit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOCKED / SENT PANE -->
+<div class="success-pane" id="successPane">
+  <div style="max-width:480px;margin:0 auto;text-align:center">
+    <div style="font-size:48px;margin-bottom:16px">&#128274;</div>
+    <h2 style="font-size:22px;font-weight:500;margin-bottom:8px">It's a wrap &mdash; brief locked.</h2>
+    <p style="font-size:14px;color:#666;line-height:1.6;margin-bottom:24px">
+      Your spec sheet has been sent to <strong id="confirmedEmail">production@aicollective.in</strong>
+      and a copy is on its way to you.<br>The brief is now in production hands.
+    </p>
+    <div style="background:#f5f3ee;border-radius:10px;padding:18px;font-size:13px;color:#666;line-height:1.7;margin-bottom:28px;text-align:left">
+      <div style="font-weight:700;color:#1a1a1a;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em">What happens next</div>
+      <div>&#128203; &nbsp;AiC team reviews your spec within <strong>1 business day</strong></div>
+      <div>&#128222; &nbsp;Your internal SPOC will reach out to confirm shoot dates</div>
+      <div>&#128274; &nbsp;Need to change something? Only your <strong>AiC SPOC can unlock</strong> this brief for amendments</div>
+    </div>
+    <div id="adminUnlockPanel" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px;margin-bottom:20px;text-align:left">
+      <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Admin override</div>
+      <p style="font-size:13px;color:#333;margin-bottom:12px">Client has requested an amendment. Unlock to edit and re-submit.</p>
+      <button onclick="adminUnlock()" style="background:#2563eb;color:#fff;border:none;padding:9px 20px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Unlock brief for editing</button>
+    </div>
+    <div style="font-size:12px;color:#bbb;border-top:1px solid #e8e5de;padding-top:16px">
+      Locked on <span id="lockTimestamp"></span> &middot; AI Collective Private Limited
+    </div>
+  </div>
+</div>
+
+</div><!-- /form-body -->
+
+<!-- NAV BAR -->
+<div class="nav-bar" id="navBar">
+  <button class="btn btn-ghost" id="prevBtn" onclick="changeStep(-1)" style="visibility:hidden">← Back</button>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="saved-badge" id="savedBadge">Draft saved ✓</span>
+    <div class="nav-center" id="dotNav"></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-save" id="saveDraftBtn" onclick="saveDraft()" style="display:none">Save draft</button>
+    <button class="btn btn-primary" id="nextBtn" onclick="changeStep(1)">Next →</button>
+  </div>
+</div>
+
+<script src="js/script.js"></script>
+
+</body>
+</html>
