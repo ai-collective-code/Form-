@@ -457,11 +457,48 @@ function updateColorFromHex(val){
 }
 
 // ─────────────────────────────────────────────
-// FILE NAMES
+// FILE NAMES & UPLOADS
 // ─────────────────────────────────────────────
-function setFileName(targetId,input){
-  const el=document.getElementById(targetId);
-  if(el&&input.files[0])el.textContent=input.files[0].name;
+const uploadedFiles = {
+  masterScriptFile: null,
+  logoFile: null,
+  packFile: null,
+  fontFile: null
+};
+
+async function setFileName(targetId, input) {
+  const el = document.getElementById(targetId);
+  if (!input.files[0]) return;
+  
+  el.textContent = "Uploading to server...";
+  el.style.color = "#8b5cf6";
+  
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  
+  try {
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    });
+    if (!response.ok) throw new Error('Upload failed');
+    const result = await response.json();
+    
+    if (result.url) {
+      // Set the global uploaded file path based on the input ID
+      uploadedFiles[input.id] = result.url;
+      el.textContent = input.files[0].name + " (Uploaded ✓)";
+      el.style.color = "#10b981";
+      saveDraft(); // Auto save draft once file is successfully uploaded
+    } else {
+      el.textContent = "Upload failed!";
+      el.style.color = "#ef4444";
+    }
+  } catch (error) {
+    el.textContent = "Upload error!";
+    el.style.color = "#ef4444";
+    console.error('File upload error:', error);
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -475,8 +512,11 @@ function toggleContemp(checked){
 // ─────────────────────────────────────────────
 // SAVE / LOAD DRAFT
 // ─────────────────────────────────────────────
+let projectId = '';
+
 function collectFormData(){
   return {
+    id: projectId || localStorage.getItem('aic_spec_project_id'),
     date:document.getElementById('date').value,
     client:document.getElementById('client').value,
     brand:document.getElementById('brand').value,
@@ -491,6 +531,7 @@ function collectFormData(){
     spocIP:document.getElementById('spocIP').value,
     spocIE:document.getElementById('spocIE').value,
     masterScript:document.getElementById('masterScript').value,
+    masterScriptFile:uploadedFiles.masterScriptFile,
     numFilms:document.getElementById('numFilms').value,
     resolution:document.getElementById('resolution').value,
     primaryLang:document.getElementById('primaryLang').value,
@@ -505,6 +546,9 @@ function collectFormData(){
     subtitleSize:document.getElementById('subtitleSize').value,
     subtitleFont:document.getElementById('subtitleFont').value,
     subtitleStyle:document.getElementById('subtitleStyleSel').value,
+    logoFile:uploadedFiles.logoFile,
+    packFile:uploadedFiles.packFile,
+    fontFile:uploadedFiles.fontFile,
     pipeline:{...aiState},
     additionalNotes:document.getElementById('additionalNotes').value,
     adaptAR:[...document.querySelectorAll('#adaptARGrid .ar-card.selected')].map(c=>c.dataset.val),
@@ -512,32 +556,224 @@ function collectFormData(){
     pubRights:[...document.querySelectorAll('#pubRights input:checked')].map(i=>i.value),
   };
 }
-function saveDraft(){
-  const data=collectFormData();
-  localStorage.setItem('aic_spec_draft',JSON.stringify(data));
-  localStorage.setItem('aic_spec_step',currentStep);
-  const badge=document.getElementById('savedBadge');
+
+async function saveDraft(){
+  const data = collectFormData();
+  localStorage.setItem('aic_spec_draft', JSON.stringify(data));
+  localStorage.setItem('aic_spec_step', currentStep);
+  
+  const badge = document.getElementById('savedBadge');
+  badge.textContent = "Saving draft...";
   badge.classList.add('show');
-  setTimeout(()=>badge.classList.remove('show'),3000);
+  
+  try {
+    const response = await fetch('/api/spec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, status: 'draft' })
+    });
+    if (!response.ok) throw new Error('Failed to save to server');
+    
+    badge.textContent = "Draft saved ✓";
+  } catch (err) {
+    console.error('Draft save failed:', err);
+    badge.textContent = "Draft saved locally ⚠";
+  }
+  
+  setTimeout(() => badge.classList.remove('show'), 3000);
 }
-function loadDraft(){
-  try{
-    const raw=localStorage.getItem('aic_spec_draft');
-    if(!raw)return;
-    const d=JSON.parse(raw);
-    const fields=['date','client','brand','projectTitle','spocCN','spocCP','spocCE','spocAN','spocAP','spocAE','spocIN','spocIP','spocIE','masterScript','numFilms','resolution','filmDuration','numDownEdits','colorHex','additionalNotes','contempSpec'];
-    fields.forEach(f=>{const el=document.getElementById(f);if(el&&d[f])el.value=d[f];});
-    if(d.primaryLang)pickSearchSelect('primaryLang',d.primaryLang);
-    if(d.masterAR){selectedMasterAR=d.masterAR;document.querySelectorAll('#masterARGrid .ar-card').forEach(c=>{c.classList.toggle('selected',c.dataset.val===d.masterAR)});}
-    if(d.logoPos){selectedLogoPos=d.logoPos;buildLogoPosGrid();}
-    if(d.brandColor)updateColor(d.brandColor);
-    if(d.subtitle){document.getElementById('subtitleToggle').checked=true;toggleSubtitles(true);}
-    if(d.subtitleSize)document.getElementById('subtitleSize').value=d.subtitleSize;
-    if(d.subtitleFont)document.getElementById('subtitleFont').value=d.subtitleFont;
-    if(d.subtitleStyle)document.getElementById('subtitleStyleSel').value=d.subtitleStyle;
-    if(d.contemporary){document.getElementById('contempToggle').checked=true;toggleContemp(true);}
-    if(d.pipeline){Object.entries(d.pipeline).forEach(([k,v])=>{if(v){const row=[...document.querySelectorAll('.ai-row')].find(r=>r.querySelector('.ai-row-label').textContent===k);if(row){const btn=[...row.querySelectorAll('.chip')].find(c=>c.textContent===v);if(btn)setAi(k,v,btn);}}});}
-  }catch(e){}
+
+async function loadDraft(){
+  // 1. Get project ID from URL or generate a new one
+  const params = new URLSearchParams(window.location.search);
+  let id = params.get('id');
+  
+  if (!id) {
+    id = localStorage.getItem('aic_spec_project_id');
+  }
+  
+  if (!id) {
+    id = 'spec-' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('aic_spec_project_id', id);
+  }
+  
+  projectId = id;
+  
+  // Set current URL query parameter to keep URL shareable (without reloading)
+  if (!params.get('id')) {
+    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + projectId;
+    window.history.replaceState({ path: newUrl }, '', newUrl);
+  }
+
+  // 2. Try to fetch from server first
+  try {
+    const response = await fetch(`/api/spec/${projectId}`);
+    if (response.ok) {
+      const data = await response.json();
+      populateForm(data);
+      return;
+    }
+  } catch (err) {
+    console.warn('Unable to load from database server. Falling back to local storage...', err);
+  }
+
+  // 3. Fallback to localStorage draft
+  try {
+    const raw = localStorage.getItem('aic_spec_draft');
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d && d.id === projectId) {
+      populateForm(d);
+    }
+  } catch (e) {
+    console.error('Failed to parse local draft:', e);
+  }
+}
+
+function populateForm(d) {
+  const fields = ['date','client','brand','projectTitle','spocCN','spocCP','spocCE','spocAN','spocAP','spocAE','spocIN','spocIP','spocIE','masterScript','numFilms','resolution','filmDuration','numDownEdits','colorHex','additionalNotes','contempSpec'];
+  fields.forEach(f => {
+    const el = document.getElementById(f);
+    // Handle database field mapping naming conventions if returned directly from MySQL
+    let val = d[f];
+    if (f === 'projectTitle' && d.project_title !== undefined) val = d.project_title;
+    if (f === 'contempSpec' && d.contemp_spec !== undefined) val = d.contemp_spec;
+    if (f === 'filmDuration' && d.film_duration !== undefined) val = d.film_duration;
+    if (f === 'numDownEdits' && d.num_down_edits !== undefined) val = d.num_down_edits;
+    if (f === 'colorHex' && d.brand_color !== undefined) val = d.brand_color;
+    if (f === 'additionalNotes' && d.additional_notes !== undefined) val = d.additional_notes;
+
+    if (el && val !== undefined && val !== null) el.value = val;
+  });
+
+  // Handle files
+  const fileFields = {
+    masterScriptFile: 'master_script_file',
+    logoFile: 'logo_file',
+    packFile: 'pack_file',
+    fontFile: 'font_file'
+  };
+  Object.entries(fileFields).forEach(([jsKey, dbKey]) => {
+    const url = d[jsKey] || d[dbKey];
+    if (url) {
+      uploadedFiles[jsKey] = url;
+      const displayId = jsKey.replace('File', 'FileName');
+      const displayEl = document.getElementById(displayId);
+      if (displayEl) {
+        const fileName = url.split('/').pop();
+        displayEl.textContent = fileName + " (Loaded ✓)";
+        displayEl.style.color = "#10b981";
+      }
+    }
+  });
+
+  if (d.primaryLang || d.primary_lang) pickSearchSelect('primaryLang', d.primaryLang || d.primary_lang);
+  
+  const masterARVal = d.masterAR || d.master_ar;
+  if (masterARVal) {
+    selectedMasterAR = masterARVal;
+    document.querySelectorAll('#masterARGrid .ar-card').forEach(c => {
+      c.classList.toggle('selected', c.dataset.val === masterARVal);
+    });
+  }
+  
+  const logoPosVal = d.logoPos || d.logo_pos;
+  if (logoPosVal) {
+    selectedLogoPos = logoPosVal;
+    buildLogoPosGrid();
+  }
+  
+  const brandColorVal = d.brandColor || d.brand_color;
+  if (brandColorVal) updateColor(brandColorVal);
+  
+  const subtitleVal = d.subtitle !== undefined ? d.subtitle : d.subtitleToggle;
+  if (subtitleVal) {
+    document.getElementById('subtitleToggle').checked = true;
+    toggleSubtitles(true);
+  }
+  
+  const subtitleSizeVal = d.subtitleSize || d.subtitle_size;
+  if (subtitleSizeVal) document.getElementById('subtitleSize').value = subtitleSizeVal;
+  
+  const subtitleFontVal = d.subtitleFont || d.subtitle_font;
+  if (subtitleFontVal) document.getElementById('subtitleFont').value = subtitleFontVal;
+  
+  const subtitleStyleVal = d.subtitleStyle || d.subtitle_style;
+  if (subtitleStyleVal) document.getElementById('subtitleStyleSel').value = subtitleStyleVal;
+  
+  const contemporaryVal = d.contemporary;
+  if (contemporaryVal) {
+    document.getElementById('contempToggle').checked = true;
+    toggleContemp(true);
+  }
+
+  // Handle pipeline
+  const pipelineVal = d.pipeline;
+  if (pipelineVal) {
+    Object.entries(pipelineVal).forEach(([k, v]) => {
+      if (v) {
+        const row = [...document.querySelectorAll('.ai-row')].find(r => r.querySelector('.ai-row-label').textContent === k);
+        if (row) {
+          const btn = [...row.querySelectorAll('.chip')].find(c => c.textContent === v);
+          if (btn) setAi(k, v, btn);
+        }
+      }
+    });
+  }
+
+  // Handle selected aspect ratios
+  const adaptARVal = d.adaptAR || d.adapt_ar;
+  if (adaptARVal && Array.isArray(adaptARVal)) {
+    document.querySelectorAll('#adaptARGrid .ar-card').forEach(c => {
+      c.classList.toggle('selected', adaptARVal.includes(c.dataset.val));
+    });
+  }
+
+  const downEditARVal = d.downEditAR || d.down_edit_ar;
+  if (downEditARVal && Array.isArray(downEditARVal)) {
+    document.querySelectorAll('#downEditARGrid .ar-card').forEach(c => {
+      c.classList.toggle('selected', downEditARVal.includes(c.dataset.val));
+    });
+  }
+
+  const pubRightsVal = d.pubRights || d.pub_rights;
+  if (pubRightsVal && Array.isArray(pubRightsVal)) {
+    document.querySelectorAll('#pubRights input').forEach(inp => {
+      if (pubRightsVal.includes(inp.value)) {
+        inp.checked = true;
+        inp.closest('.check-chip').classList.add('selected');
+      }
+    });
+  }
+
+  // If status is submitted, lock fields and show success page
+  if (d.status === 'submitted') {
+    // Lock all fields
+    const allInputs = document.querySelectorAll('.form-body input, .form-body textarea, .form-body select, .form-body button');
+    allInputs.forEach(el => {
+      if (el.id !== 'modeToggleBtn' && !el.closest('#adminUnlockPanel')) {
+        el.disabled = true;
+        el.style.opacity = '.6';
+      }
+    });
+
+    document.getElementById('pane1').classList.remove('active');
+    document.getElementById('successPane').classList.add('active');
+    document.getElementById('navBar').style.display = 'none';
+    document.getElementById('stepTabs').style.display = 'none';
+    document.getElementById('progressFill').style.width = '100%';
+    
+    // Set confirmed email display
+    const emailDisplay = d.spocCE ? 'production@aicollective.in + ' + d.spocCE : 'production@aicollective.in';
+    document.getElementById('confirmedEmail').textContent = emailDisplay;
+
+    // Set lock timestamp
+    const lockTime = d.updated_at ? new Date(d.updated_at) : new Date();
+    document.getElementById('lockTimestamp').textContent = lockTime.toLocaleString('en-IN', {
+      day:'numeric', month:'short', year:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -627,74 +863,115 @@ function buildReviewCards(d){
     </div>`).join('');
 }
 
-function confirmAndSend(){
+async function confirmAndSend(){
   const d = cachedFormData || collectFormData();
+  d.status = 'submitted';
+
+  // 1. Save submission to the database
+  try {
+    const response = await fetch('/api/spec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d)
+    });
+    if (!response.ok) throw new Error('Database submission failed');
+  } catch (err) {
+    console.error('Database submission failed:', err);
+    alert('Failed to save brief to the database. Make sure the database server is running.');
+    return;
+  }
+
+  // 2. Generate mail client fallback trigger as backup
   const pipelineText = Object.entries(d.pipeline).map(([k,v])=>k+': '+(v||'—')).join('\n');
   const sub = encodeURIComponent('Production Spec Sheet — ' + d.brand + ' / ' + d.projectTitle);
   const bodyText =
-'PRODUCTION SPEC SHEET — AI COLLECTIVE\n' +
-'======================================\n' +
-'Date: ' + d.date + '\n' +
-'Client: ' + d.client + '\n' +
-'Brand: ' + d.brand + '\n' +
-'Project: ' + d.projectTitle + '\n\n' +
-'SPOCs\n' +
-'Client: ' + d.spocCN + ' | ' + d.spocCP + ' | ' + d.spocCE + '\n' +
-'Agency: ' + d.spocAN + ' | ' + d.spocAP + ' | ' + d.spocAE + '\n' +
-'Internal: ' + d.spocIN + ' | ' + d.spocIP + ' | ' + d.spocIE + '\n\n' +
-'DELIVERABLES\n' +
-'Publishing: ' + (d.pubRights.join(', ')||'—') + '\n' +
-'Films: ' + d.numFilms + ' | Resolution: ' + d.resolution + '\n' +
-'Duration: ' + (d.filmDuration ? formatDur(parseInt(d.filmDuration)) : '—') + '\n' +
-'Master AR: ' + d.masterAR + ' | Adapts to: ' + (d.adaptAR.join(', ')||'—') + '\n' +
-'Down edits: ' + d.numDownEdits + ' | DE formats: ' + (d.downEditAR.join(', ')||'—') + '\n' +
-'Language: ' + d.primaryLang + (d.contemporary ? ' + Contemporary (' + d.contempSpec + ')' : '') + '\n\n' +
-'BRAND\n' +
-'Colour: ' + d.brandColor + '\n' +
-'Logo placement: ' + d.logoPos + '\n\n' +
-'SUBTITLES: ' + (d.subtitle ? 'Yes — ' + d.subtitleSize + 'px ' + d.subtitleStyle : 'No') + '\n\n' +
-'PIPELINE\n' + pipelineText + '\n\n' +
-'NOTES\n' + (d.additionalNotes||'—') + '\n\n' +
-'SCRIPT\n' + (d.masterScript||'[uploaded separately]');
+    'PRODUCTION SPEC SHEET — AI COLLECTIVE\n' +
+    '======================================\n' +
+    'Project ID: ' + d.id + '\n' +
+    'Date: ' + d.date + '\n' +
+    'Client: ' + d.client + '\n' +
+    'Brand: ' + d.brand + '\n' +
+    'Project: ' + d.projectTitle + '\n\n' +
+    'SPOCs\n' +
+    'Client: ' + d.spocCN + ' | ' + d.spocCP + ' | ' + d.spocCE + '\n' +
+    'Agency: ' + d.spocAN + ' | ' + d.spocAP + ' | ' + d.spocAE + '\n' +
+    'Internal: ' + d.spocIN + ' | ' + d.spocIP + ' | ' + d.spocIE + '\n\n' +
+    'DELIVERABLES\n' +
+    'Publishing: ' + (d.pubRights.join(', ')||'—') + '\n' +
+    'Films: ' + d.numFilms + ' | Resolution: ' + d.resolution + '\n' +
+    'Duration: ' + (d.filmDuration ? formatDur(parseInt(d.filmDuration)) : '—') + '\n' +
+    'Master AR: ' + d.masterAR + ' | Adapts to: ' + (d.adaptAR.join(', ')||'—') + '\n' +
+    'Down edits: ' + d.numDownEdits + ' | DE formats: ' + (d.downEditAR.join(', ')||'—') + '\n' +
+    'Language: ' + d.primaryLang + (d.contemporary ? ' + Contemporary (' + d.contempSpec + ')' : '') + '\n\n' +
+    'BRAND\n' +
+    'Colour: ' + d.brandColor + '\n' +
+    'Logo placement: ' + d.logoPos + '\n\n' +
+    'SUBTITLES: ' + (d.subtitle ? 'Yes — ' + d.subtitleSize + 'px ' + d.subtitleStyle : 'No') + '\n\n' +
+    'PIPELINE\n' + pipelineText + '\n\n' +
+    'NOTES\n' + (d.additionalNotes||'—') + '\n\n' +
+    'FILES\n' +
+    'Logo File: ' + (uploadedFiles.logoFile || '—') + '\n' +
+    'Pack File: ' + (uploadedFiles.packFile || '—') + '\n' +
+    'Font File: ' + (uploadedFiles.fontFile || '—') + '\n\n' +
+    'SCRIPT\n' + (d.masterScript || (uploadedFiles.masterScriptFile ? '[File Link]: ' + window.location.origin + uploadedFiles.masterScriptFile : '—'));
 
   const body = encodeURIComponent(bodyText);
   const to = 'production@aicollective.in';
   const cc = d.spocCE || '';
   window.location.href = 'mailto:' + to + (cc ? '?cc=' + encodeURIComponent(cc) + '&' : '?') + 'subject=' + sub + '&body=' + body;
 
-  // show locked screen
+  // Show locked success screen
   document.getElementById('reviewPane').classList.remove('active');
   document.getElementById('successPane').classList.add('active');
 
-  // set confirmed email display
+  // Set confirmed email display
   const emailDisplay = d.spocCE ? 'production@aicollective.in + ' + d.spocCE : 'production@aicollective.in';
   document.getElementById('confirmedEmail').textContent = emailDisplay;
 
-  // timestamp
+  // Timestamp
   const now = new Date();
   document.getElementById('lockTimestamp').textContent = now.toLocaleString('en-IN', {
     day:'numeric', month:'short', year:'numeric',
     hour:'2-digit', minute:'2-digit'
   });
 
-  // show admin unlock panel if in admin mode
+  // Show admin unlock panel if in admin mode
   if(isAdmin) document.getElementById('adminUnlockPanel').style.display = 'block';
 
-  // mark as submitted in localStorage
+  // Mark as submitted locally
   localStorage.setItem('aic_spec_submitted', 'true');
   localStorage.setItem('aic_spec_locked_at', now.toISOString());
 }
 
-function adminUnlock(){
+async function adminUnlock(){
   if(!isAdmin) return;
-  // restore form
-  document.getElementById('successPane').classList.remove('active');
-  document.getElementById('pane1').classList.add('active');
-  document.getElementById('navBar').style.display='flex';
-  document.getElementById('stepTabs').style.display='flex';
-  currentStep = 1;
-  updateNavState();
-  localStorage.removeItem('aic_spec_submitted');
-  window.scrollTo({top:0,behavior:'smooth'});
-  alert('Brief unlocked. Make your amendments and re-submit when ready.');
+  
+  try {
+    const response = await fetch(`/api/spec/${projectId}/unlock`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Unlock failed on server');
+    
+    // Restore form on success
+    document.getElementById('successPane').classList.remove('active');
+    document.getElementById('pane1').classList.add('active');
+    document.getElementById('navBar').style.display='flex';
+    document.getElementById('stepTabs').style.display='flex';
+    
+    // Enable all inputs
+    const allInputs = document.querySelectorAll('.form-body input, .form-body textarea, .form-body select, .form-body button');
+    allInputs.forEach(el => {
+      el.disabled = false;
+      el.style.opacity = '1';
+    });
+    
+    currentStep = 1;
+    updateNavState();
+    localStorage.removeItem('aic_spec_submitted');
+    window.scrollTo({top:0,behavior:'smooth'});
+    alert('Brief unlocked. Make your amendments and re-submit when ready.');
+  } catch (err) {
+    console.error('Unlock error:', err);
+    alert('Failed to unlock spec sheet on database server.');
+  }
 }
