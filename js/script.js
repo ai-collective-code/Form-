@@ -85,7 +85,10 @@ function updateNavState() {
   if(currentStep===TOTAL_STEPS){nb.textContent='Submit ✓';nb.className='btn btn-submit';nb.onclick=submitForm;}
   else{nb.textContent='Next →';nb.className='btn btn-primary';nb.onclick=()=>changeStep(1);}
   document.getElementById('progressFill').style.width=(currentStep/TOTAL_STEPS*100)+'%';
-  document.getElementById('saveDraftBtn').style.display=isAdmin?'block':'none';
+  
+  document.getElementById('saveDraftBtn').style.display=isAdmin&&currentStatus!=='finalized'?'block':'none';
+  document.getElementById('shareBtn').style.display=isAdmin&&(currentStatus==='draft'||currentStatus==='shared_with_client')?'block':'none';
+  document.getElementById('reviewChangesBtn').style.display=isAdmin&&currentStatus==='client_submitted'?'block':'none';
 }
 function changeStep(dir){goToStep(currentStep+dir)}
 function goToStep(n){
@@ -112,7 +115,9 @@ function toggleMode(){
     if(p)p.style.display=isAdmin?'block':'none';
     buildLockList(i);
   }
-  document.getElementById('saveDraftBtn').style.display=isAdmin?'block':'none';
+  document.getElementById('saveDraftBtn').style.display=isAdmin&&currentStatus!=='finalized'?'block':'none';
+  document.getElementById('shareBtn').style.display=isAdmin&&(currentStatus==='draft'||currentStatus==='shared_with_client')?'block':'none';
+  document.getElementById('reviewChangesBtn').style.display=isAdmin&&currentStatus==='client_submitted'?'block':'none';
 }
 function buildLockList(step){
   const el=document.getElementById('lockList'+step);
@@ -513,6 +518,8 @@ function toggleContemp(checked){
 // SAVE / LOAD DRAFT
 // ─────────────────────────────────────────────
 let projectId = '';
+let currentStatus = 'draft';
+let internalSnapshot = null;
 
 function collectFormData(){
   return {
@@ -774,6 +781,35 @@ function populateForm(d) {
       hour:'2-digit', minute:'2-digit'
     });
   }
+
+  // Update status globals
+  currentStatus = d.status || 'draft';
+  if (d.internal_snapshot) {
+    try {
+      internalSnapshot = typeof d.internal_snapshot === 'string' ? JSON.parse(d.internal_snapshot) : d.internal_snapshot;
+    } catch(e) {}
+  }
+
+  // If finalized, lock completely
+  if (currentStatus === 'finalized') {
+    const allInputs = document.querySelectorAll('.form-body input, .form-body textarea, .form-body select, .form-body button');
+    allInputs.forEach(el => {
+      if (el.id !== 'modeToggleBtn') {
+        el.disabled = true;
+        el.style.opacity = '.6';
+      }
+    });
+    // Show locked view instead of the form
+    document.getElementById('pane1').classList.remove('active');
+    document.getElementById('successPane').classList.add('active');
+    document.getElementById('navBar').style.display = 'none';
+    document.getElementById('stepTabs').style.display = 'none';
+    document.querySelector('#successPane h2').textContent = "Project Finalized & Locked";
+    document.querySelector('#successPane p').textContent = "This spec sheet has been fully finalized by the internal team. No further modifications are allowed.";
+    document.getElementById('adminUnlockPanel').style.display = 'none';
+  }
+
+  updateNavState();
 }
 
 // ─────────────────────────────────────────────
@@ -973,5 +1009,157 @@ async function adminUnlock(){
   } catch (err) {
     console.error('Unlock error:', err);
     alert('Failed to unlock spec sheet on database server.');
+  }
+}
+
+async function shareWithClient() {
+  if (!projectId) {
+    alert('Please save the draft first before sharing.');
+    return;
+  }
+  
+  const btn = document.getElementById('shareBtn');
+  btn.textContent = 'Sharing...';
+  
+  try {
+    // First save any current changes to the draft
+    await saveDraft();
+    
+    // Call the share endpoint to create a snapshot
+    const response = await fetch(`/api/spec/${projectId}/share`, { method: 'POST' });
+    if (!response.ok) throw new Error('Share failed on server');
+    
+    currentStatus = 'shared_with_client';
+    updateNavState();
+    
+    // Generate the shareable link (using window.location.origin to work dynamically on live or local)
+    const link = `${window.location.origin}/?id=${projectId}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(link).then(() => {
+      btn.textContent = 'Link Copied!';
+      btn.style.background = '#10b981'; // green
+      setTimeout(() => {
+        btn.textContent = 'Share with Client';
+        btn.style.background = '#2563eb';
+      }, 3000);
+    }).catch(err => {
+      console.error('Copy to clipboard failed', err);
+      prompt('Copy this link manually:', link);
+      btn.textContent = 'Share with Client';
+    });
+    
+  } catch (err) {
+    console.error('Share error:', err);
+    alert('Failed to share spec sheet on database server.');
+    btn.textContent = 'Share with Client';
+  }
+}
+
+function showDiffPane() {
+  if (!internalSnapshot) {
+    alert("No internal snapshot found to compare against.");
+    return;
+  }
+  
+  const current = collectFormData();
+  const diffs = compareSpec(internalSnapshot, current);
+  
+  const diffCards = document.getElementById('diffCards');
+  if (diffs.length === 0) {
+    diffCards.innerHTML = '<div style="padding:20px;text-align:center;color:#666;border:1px dashed #ccc;border-radius:8px">No changes were made by the client.</div>';
+  } else {
+    diffCards.innerHTML = diffs.map(d => `
+      <div style="background:#fff;border:1px solid #e8e5de;border-radius:10px;padding:14px 16px;">
+        <div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:6px">${d.field}</div>
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <div style="flex:1;background:#fef2f2;border:1px solid #fca5a5;padding:8px;border-radius:6px;font-size:13px;color:#991b1b">
+            <div style="font-size:10px;text-transform:uppercase;margin-bottom:4px;color:#dc2626;font-weight:bold">Original (Admin)</div>
+            ${d.oldVal}
+          </div>
+          <div style="padding-top:10px;color:#aaa">➔</div>
+          <div style="flex:1;background:#ecfdf5;border:1px solid #6ee7b7;padding:8px;border-radius:6px;font-size:13px;color:#065f46">
+            <div style="font-size:10px;text-transform:uppercase;margin-bottom:4px;color:#059669;font-weight:bold">New (Client)</div>
+            ${d.newVal}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+  
+  // hide all step panes
+  for(let i=1;i<=TOTAL_STEPS;i++){
+    const p=document.getElementById('pane'+i);
+    if(p) p.classList.remove('active');
+  }
+  document.getElementById('reviewPane').classList.remove('active');
+  document.getElementById('diffPane').classList.add('active');
+  document.getElementById('navBar').style.display='none';
+  document.getElementById('stepTabs').style.display='none';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function compareSpec(snapshot, current) {
+  const diffs = [];
+  
+  const mapDbToJs = {
+    date: 'date', client: 'client', brand: 'brand', project_title: 'projectTitle',
+    spoc_cn: 'spocCN', spoc_cp: 'spocCP', spoc_ce: 'spocCE',
+    master_script: 'masterScript',
+    num_films: 'numFilms', resolution: 'resolution', primary_lang: 'primaryLang',
+    contemporary: 'contemporary', contemp_spec: 'contempSpec', film_duration: 'filmDuration',
+    num_down_edits: 'numDownEdits', master_ar: 'masterAR', logo_pos: 'logoPos',
+    brand_color: 'brandColor', subtitle: 'subtitle', subtitle_size: 'subtitleSize',
+    subtitle_font: 'subtitleFont', subtitle_style: 'subtitleStyle',
+    additional_notes: 'additionalNotes'
+  };
+
+  Object.keys(mapDbToJs).forEach(dbKey => {
+    const jsKey = mapDbToJs[dbKey];
+    let oldVal = snapshot[dbKey];
+    let newVal = current[jsKey];
+    
+    // Normalize booleans / truthiness for comparison
+    if (dbKey === 'contemporary' || dbKey === 'subtitle') {
+      oldVal = oldVal ? true : false;
+      newVal = newVal ? true : false;
+    }
+    
+    // Normalize strings
+    if (typeof oldVal === 'string') oldVal = oldVal.trim();
+    if (typeof newVal === 'string') newVal = newVal.trim();
+    
+    if (oldVal != newVal) {
+      if (!oldVal && !newVal) return; // both effectively empty
+      diffs.push({
+        field: jsKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+        oldVal: oldVal || '(empty)',
+        newVal: newVal || '(empty)'
+      });
+    }
+  });
+  
+  return diffs;
+}
+
+async function finalizeSpec() {
+  if(!confirm("Are you sure you want to finalize this brief? No further changes can be made by anyone.")) return;
+  
+  try {
+    const response = await fetch(`/api/spec/${projectId}/finalize`, { method: 'POST' });
+    if (!response.ok) throw new Error('Finalize failed on server');
+    
+    currentStatus = 'finalized';
+    
+    // Hide diff pane
+    document.getElementById('diffPane').classList.remove('active');
+    
+    // Reload form UI state
+    const { d } = await fetch(`/api/spec/${projectId}`).then(r => r.json()).then(data => ({ d: data }));
+    populateForm(d); // This will trigger the locked state UI
+    
+  } catch (err) {
+    console.error('Finalize error:', err);
+    alert('Failed to finalize spec sheet on database server.');
   }
 }

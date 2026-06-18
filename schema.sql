@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS `spec_sheets` (
   `pub_rights` JSON DEFAULT NULL,
   
   -- Status and Timestamps
+  `internal_snapshot` JSON DEFAULT NULL,
   `status` VARCHAR(50) DEFAULT 'draft',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

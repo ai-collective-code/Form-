@@ -11,7 +11,11 @@ const poolConfig = {
   database: process.env.DB_NAME || 'ai_collective_spec_sheet',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  ssl: (process.env.DB_HOST && process.env.DB_HOST.includes('tidbcloud.com')) ? {
+    minVersion: 'TLSv1.2',
+    rejectUnauthorized: true
+  } : null
 };
 
 // Create a pool to use

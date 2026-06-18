@@ -116,7 +116,7 @@ app.post('/api/spec', async (req, res) => {
       adapt_ar = VALUES(adapt_ar),
       down_edit_ar = VALUES(down_edit_ar),
       pub_rights = VALUES(pub_rights),
-      status = VALUES(status)
+      status = IF(status = 'shared_with_client' AND VALUES(status) = 'draft', 'client_submitted', VALUES(status))
   `;
 
   const values = [
@@ -187,6 +187,33 @@ app.post('/api/spec/:id/unlock', async (req, res) => {
   } catch (error) {
     console.error('SQL Error:', error);
     res.status(500).json({ error: 'Failed to unlock spec sheet' });
+  }
+});
+
+// Share with client endpoint
+app.post('/api/spec/:id/share', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM spec_sheets WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Spec sheet not found' });
+    }
+    const snapshot = JSON.stringify(rows[0]);
+    await pool.query('UPDATE spec_sheets SET status = "shared_with_client", internal_snapshot = ? WHERE id = ?', [snapshot, req.params.id]);
+    res.json({ success: true, message: 'Spec sheet shared with client' });
+  } catch (error) {
+    console.error('SQL Error:', error);
+    res.status(500).json({ error: 'Failed to share spec sheet' });
+  }
+});
+
+// Finalize endpoint
+app.post('/api/spec/:id/finalize', async (req, res) => {
+  try {
+    await pool.query('UPDATE spec_sheets SET status = "finalized" WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Spec sheet finalized' });
+  } catch (error) {
+    console.error('SQL Error:', error);
+    res.status(500).json({ error: 'Failed to finalize spec sheet' });
   }
 });
 
