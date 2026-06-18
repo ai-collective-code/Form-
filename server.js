@@ -167,10 +167,23 @@ app.get('/api/spec/:id', async (req, res) => {
     const row = rows[0];
     
     // Parse JSON strings back to standard objects/arrays for frontend
-    if (row.pipeline) row.pipeline = JSON.parse(row.pipeline);
-    if (row.adapt_ar) row.adapt_ar = JSON.parse(row.adapt_ar);
-    if (row.down_edit_ar) row.down_edit_ar = JSON.parse(row.down_edit_ar);
-    if (row.pub_rights) row.pub_rights = JSON.parse(row.pub_rights);
+    const parseField = (val) => {
+      if (!val) return val;
+      if (typeof val === 'string') {
+        try {
+          return JSON.parse(val);
+        } catch (e) {
+          return val;
+        }
+      }
+      return val;
+    };
+
+    row.pipeline = parseField(row.pipeline);
+    row.adapt_ar = parseField(row.adapt_ar);
+    row.down_edit_ar = parseField(row.down_edit_ar);
+    row.pub_rights = parseField(row.pub_rights);
+    row.internal_snapshot = parseField(row.internal_snapshot);
     
     res.json(row);
   } catch (error) {
