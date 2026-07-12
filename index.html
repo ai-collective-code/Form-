@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Production Spec Sheet — AI Collective</title>
 <link rel="stylesheet" href="css/style.css">
-
+<script src="js/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -63,20 +63,8 @@
 
   <div class="section">
     <div class="section-label">Master film script</div>
-    <div class="script-tabs">
-      <button class="script-tab active" onclick="switchScriptTab('master','paste')">Paste / type</button>
-      <button class="script-tab" onclick="switchScriptTab('master','upload')">Upload file</button>
-    </div>
     <div class="script-pane active" id="master-paste">
       <textarea id="masterScript" rows="8" placeholder="INT. KITCHEN — MORNING&#10;&#10;A mother prepares breakfast. Her son runs in, energetic..." oninput="checkDurationMismatch()"></textarea>
-    </div>
-    <div class="script-pane" id="master-upload">
-      <div class="file-drop" onclick="document.getElementById('masterScriptFile').click()">
-        <div class="fd-icon">📄</div>
-        <div class="fd-label">Click to upload script<br><span style="font-size:11px">PDF, DOCX, or TXT</span></div>
-        <div class="fd-name" id="masterScriptFileName"></div>
-        <input type="file" id="masterScriptFile" accept=".pdf,.docx,.txt" onchange="setFileName('masterScriptFileName',this)">
-      </div>
     </div>
     <div class="duration-flag" id="durationFlag">
       <strong>⚠ Duration mismatch detected.</strong> Based on the word count in your script, the estimated runtime is <span id="estDuration">—</span>, but you've specified <span id="specDuration">—</span>. Please verify with your <strong>AiC SPOC</strong> before submission.
@@ -315,7 +303,7 @@
 ══════════════════════════════════════════════════ -->
 <div class="step-pane" id="pane7">
   <h2 class="step-heading">Production pipeline</h2>
-  <p class="step-sub">Tag each production element as AI-generated, Human-produced, or Not applicable.</p>
+  <p class="step-sub">Tag each production element as AI-generated, Human-produced, Hybrid, or Not applicable.</p>
 
   <div class="admin-panel" id="adminPanel7" style="display:none"><h4>Admin — pre-fill & lock</h4><div id="lockList7"></div></div>
 
@@ -336,18 +324,10 @@
       <p style="font-size:14px;color:#888;line-height:1.5">Here's everything you've locked in.<br>Give it one last read. This spec goes straight to production.</p>
     </div>
     <div id="reviewCards" style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px"></div>
-    <div style="background:#fff8ed;border:1px solid #f5c842;border-radius:10px;padding:16px 18px;margin-bottom:24px">
-      <div style="font-size:13px;font-weight:700;color:#7a5c00;margin-bottom:6px">&#9888; Once you confirm, this is locked.</div>
-      <div style="font-size:13px;color:#7a5c00;line-height:1.6">
-        This spec sheet will be <strong>mailed directly to the AI Collective production team</strong> and your registered email.
-        No edits after this point &mdash; the brief goes live into production.
-        If you need a change after submission, contact your <strong>AiC SPOC</strong> &mdash; only they can unlock and amend.
-      </div>
-    </div>
     <div style="text-align:center">
-      <p style="font-size:12px;color:#bbb;margin-bottom:14px">By clicking below, you confirm this brief is final and accurate.</p>
-      <button onclick="confirmAndSend()" style="background:#111;color:#fff;border:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit" >
-        Yes, lock it &amp; send to production &#8594;
+      <p style="font-size:12px;color:#bbb;margin-bottom:14px">By clicking below, you will generate and download this spec sheet as a PDF.</p>
+      <button onclick="confirmAndSend(event)" style="background:#111;color:#fff;border:none;padding:14px 40px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit" >
+        Download Spec Sheet as PDF
       </button>
       <div style="margin-top:14px">
         <button onclick="goBackFromReview()" style="background:none;border:none;color:#aaa;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline">Go back and edit</button>
@@ -356,31 +336,7 @@
   </div>
 </div>
 
-<!-- LOCKED / SENT PANE -->
-<div class="success-pane" id="successPane">
-  <div style="max-width:480px;margin:0 auto;text-align:center">
-    <div style="font-size:48px;margin-bottom:16px">&#128274;</div>
-    <h2 style="font-size:22px;font-weight:500;margin-bottom:8px">It's a wrap &mdash; brief locked.</h2>
-    <p style="font-size:14px;color:#666;line-height:1.6;margin-bottom:24px">
-      Your spec sheet has been sent to <strong id="confirmedEmail">production@aicollective.in</strong>
-      and a copy is on its way to you.<br>The brief is now in production hands.
-    </p>
-    <div style="background:#f5f3ee;border-radius:10px;padding:18px;font-size:13px;color:#666;line-height:1.7;margin-bottom:28px;text-align:left">
-      <div style="font-weight:700;color:#1a1a1a;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em">What happens next</div>
-      <div>&#128203; &nbsp;AiC team reviews your spec within <strong>1 business day</strong></div>
-      <div>&#128222; &nbsp;Your internal SPOC will reach out to confirm shoot dates</div>
-      <div>&#128274; &nbsp;Need to change something? Only your <strong>AiC SPOC can unlock</strong> this brief for amendments</div>
-    </div>
-    <div id="adminUnlockPanel" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px;margin-bottom:20px;text-align:left">
-      <div style="font-size:12px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Admin override</div>
-      <p style="font-size:13px;color:#333;margin-bottom:12px">Client has requested an amendment. Unlock to edit and re-submit.</p>
-      <button onclick="adminUnlock()" style="background:#2563eb;color:#fff;border:none;padding:9px 20px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Unlock brief for editing</button>
-    </div>
-    <div style="font-size:12px;color:#bbb;border-top:1px solid #e8e5de;padding-top:16px">
-      Locked on <span id="lockTimestamp"></span> &middot; AI Collective Private Limited
-    </div>
-  </div>
-</div>
+
 
 <!-- CLIENT CHANGES REVIEW PANE -->
 <div class="success-pane" id="diffPane">
@@ -419,7 +375,7 @@
   </div>
 </div>
 
-<script src="js/script.js"></script>
+<script src="js/script.js?v=4"></script>
 
 </body>
 </html>

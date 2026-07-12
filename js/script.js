@@ -244,6 +244,7 @@ function buildAIGrid(){
       <div class="chip-group">
         <button class="chip" onclick="setAi('${el}','AI',this)">AI</button>
         <button class="chip" onclick="setAi('${el}','Human',this)">Human</button>
+        <button class="chip" onclick="setAi('${el}','Hybrid',this)">Hybrid</button>
         <button class="chip" onclick="setAi('${el}','NA',this)">N/A</button>
       </div>
     </div>`).join('');
@@ -330,20 +331,8 @@ function addDownEditScriptWindow(){
       <span style="font-size:13px;font-weight:600">Down edit #${deScriptCount}</span>
       <button style="background:none;border:none;cursor:pointer;color:#bbb;font-size:14px" onclick="this.closest('#de-script-${deScriptCount}').remove()">✕</button>
     </div>
-    <div class="script-tabs">
-      <button class="script-tab active" onclick="switchScriptTab('de${deScriptCount}','paste')">Paste / type</button>
-      <button class="script-tab" onclick="switchScriptTab('de${deScriptCount}','upload')">Upload file</button>
-    </div>
     <div class="script-pane active" id="de${deScriptCount}-paste">
-      <textarea rows="5" placeholder="Include only lines and scenes from the master script — no new produced elements..." style="width:100%;border:1px solid #d8d5ce;border-radius:0 0 8px 8px;padding:10px;font-size:13px;font-family:inherit;outline:none"></textarea>
-    </div>
-    <div class="script-pane" id="de${deScriptCount}-upload">
-      <div class="file-drop" onclick="document.getElementById('deFile${deScriptCount}').click()">
-        <div class="fd-icon">📄</div>
-        <div class="fd-label">PDF, DOCX, or TXT</div>
-        <div class="fd-name" id="deFile${deScriptCount}Name"></div>
-        <input type="file" id="deFile${deScriptCount}" accept=".pdf,.docx,.txt" onchange="setFileName('deFile${deScriptCount}Name',this)">
-      </div>
+      <textarea rows="5" placeholder="Include only lines and scenes from the master script — no new produced elements..." style="width:100%;border:1px solid #d8d5ce;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;outline:none"></textarea>
     </div>
     <div class="de-warn">⚠ Down edits must be cut-downs from the master script only. No new shots, voiceover, or production elements.</div>`;
   document.getElementById('downEditScriptWindows').appendChild(div);
@@ -899,84 +888,266 @@ function buildReviewCards(d){
     </div>`).join('');
 }
 
-async function confirmAndSend(){
+async function confirmAndSend(ev) {
   const d = cachedFormData || collectFormData();
-  d.status = 'submitted';
+  const btn = (ev && ev.currentTarget) || (typeof event !== 'undefined' && event.currentTarget) || null;
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Generating PDF...'; btn.disabled = true; }
 
-  // 1. Save submission to the database
-  try {
-    const response = await fetch('/api/spec', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(d)
-    });
-    if (!response.ok) throw new Error('Database submission failed');
-  } catch (err) {
-    console.error('Database submission failed:', err);
-    alert('Failed to save brief to the database. Make sure the database server is running.');
-    return;
-  }
+  // ── Collect dynamically-added scripts / dubbed languages ──────────
+  // Down-edit windows have ids like "de-script-1"; each holds one textarea.
+  const downEdits = [...document.querySelectorAll('[id^="de-script-"] textarea')]
+    .map(t => t.value.trim())
+    .filter(Boolean);
+  // Dubbed windows have class ".dubbed-window"; the chosen language is in the
+  // display input (.search-select-input). There is no script textarea.
+  const dubbed = [...document.querySelectorAll('.dubbed-window')]
+    .map(w => { const el = w.querySelector('.search-select-input'); return el ? el.value.trim() : ''; })
+    .filter(Boolean);
 
-  // 2. Generate mail client fallback trigger as backup
-  const pipelineText = Object.entries(d.pipeline).map(([k,v])=>k+': '+(v||'—')).join('\n');
-  const sub = encodeURIComponent('Production Spec Sheet — ' + d.brand + ' / ' + d.projectTitle);
-  const bodyText =
-    'PRODUCTION SPEC SHEET — AI COLLECTIVE\n' +
-    '======================================\n' +
-    'Project ID: ' + d.id + '\n' +
-    'Date: ' + d.date + '\n' +
-    'Client: ' + d.client + '\n' +
-    'Brand: ' + d.brand + '\n' +
-    'Project: ' + d.projectTitle + '\n\n' +
-    'SPOCs\n' +
-    'Client: ' + d.spocCN + ' | ' + d.spocCP + ' | ' + d.spocCE + '\n' +
-    'Agency: ' + d.spocAN + ' | ' + d.spocAP + ' | ' + d.spocAE + '\n' +
-    'Internal: ' + d.spocIN + ' | ' + d.spocIP + ' | ' + d.spocIE + '\n\n' +
-    'DELIVERABLES\n' +
-    'Publishing: ' + (d.pubRights.join(', ')||'—') + '\n' +
-    'Films: ' + d.numFilms + ' | Resolution: ' + d.resolution + '\n' +
-    'Duration: ' + (d.filmDuration ? formatDur(parseInt(d.filmDuration)) : '—') + '\n' +
-    'Master AR: ' + d.masterAR + ' | Adapts to: ' + (d.adaptAR.join(', ')||'—') + '\n' +
-    'Down edits: ' + d.numDownEdits + ' | DE formats: ' + (d.downEditAR.join(', ')||'—') + '\n' +
-    'Language: ' + d.primaryLang + (d.contemporary ? ' + Contemporary (' + d.contempSpec + ')' : '') + '\n\n' +
-    'BRAND\n' +
-    'Colour: ' + d.brandColor + '\n' +
-    'Logo placement: ' + d.logoPos + '\n\n' +
-    'SUBTITLES: ' + (d.subtitle ? 'Yes — ' + d.subtitleSize + 'px ' + d.subtitleStyle : 'No') + '\n\n' +
-    'PIPELINE\n' + pipelineText + '\n\n' +
-    'NOTES\n' + (d.additionalNotes||'—') + '\n\n' +
-    'FILES\n' +
-    'Logo File: ' + (uploadedFiles.logoFile || '—') + '\n' +
-    'Pack File: ' + (uploadedFiles.packFile || '—') + '\n' +
-    'Font File: ' + (uploadedFiles.fontFile || '—') + '\n\n' +
-    'SCRIPT\n' + (d.masterScript || (uploadedFiles.masterScriptFile ? '[File Link]: ' + window.location.origin + uploadedFiles.masterScriptFile : '—'));
+  // ── Formatting helpers ─────────────────────────────────────────────
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const BLANK = '<span style="color:#c0392b;font-style:italic;">— not provided —</span>';
+  const show = (v) => {
+    if (Array.isArray(v)) return v.length ? esc(v.join(', ')) : BLANK;
+    const s = (v == null ? '' : String(v)).trim();
+    return s ? esc(s) : BLANK;
+  };
+  const fileName = (url) => url ? esc(String(url).split('/').pop()) : null;
 
-  const body = encodeURIComponent(bodyText);
-  const to = 'production@aicollective.in';
-  const cc = d.spocCE || '';
-  window.location.href = 'mailto:' + to + (cc ? '?cc=' + encodeURIComponent(cc) + '&' : '?') + 'subject=' + sub + '&body=' + body;
+  const row = (label, value, raw) => `
+    <div style="display:flex; border-bottom:1px solid #eaeaea; padding:10px 0;">
+      <div style="width:38%; font-weight:600; color:#555; font-size:12.5px;">${label}</div>
+      <div style="width:62%; font-size:13px; color:#111; word-break:break-word;">${raw ? (value && String(value).trim() ? value : BLANK) : show(value)}</div>
+    </div>`;
 
-  // Show locked success screen
-  document.getElementById('reviewPane').classList.remove('active');
-  document.getElementById('successPane').classList.add('active');
+  const heading = (title) => `
+    <h2 style="background:#111; color:#fff; padding:11px 16px; font-size:15px; margin:30px 0 14px; border-radius:6px; letter-spacing:0.05em; text-transform:uppercase;">
+      ${title}
+    </h2>`;
 
-  // Set confirmed email display
-  const emailDisplay = d.spocCE ? 'production@aicollective.in + ' + d.spocCE : 'production@aicollective.in';
-  document.getElementById('confirmedEmail').textContent = emailDisplay;
+  const scriptBlock = (text) => `
+    <div style="padding:18px; background:#fafafa; border:1px solid #eaeaea; border-radius:8px; white-space:pre-wrap; font-family:monospace; font-size:12.5px; line-height:1.7; color:#333; margin-bottom:18px;">${text && text.trim() ? esc(text) : BLANK}</div>`;
 
-  // Timestamp
-  const now = new Date();
-  document.getElementById('lockTimestamp').textContent = now.toLocaleString('en-IN', {
-    day:'numeric', month:'short', year:'numeric',
-    hour:'2-digit', minute:'2-digit'
+  // ── Production pipeline — always list ALL elements ─────────────────
+  const pipelineHtml = AI_ELEMENTS.map(el => {
+    const v = d.pipeline ? d.pipeline[el] : '';
+    const color = v === 'AI' ? '#7c3aed' : v === 'Human' ? '#059669' : v === 'Hybrid' ? '#d97706' : '#bbb';
+    const label = v === 'NA' ? 'N/A' : (v || 'Not specified');
+    return `<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eee; padding:8px 0; font-size:13px;">
+        <span style="color:#444;">${esc(el)}</span>
+        <span style="font-weight:600; color:${color};">${label}</span>
+      </div>`;
+  }).join('');
+
+  const durationLabel = d.filmDuration ? `${formatDur(parseInt(d.filmDuration))} (${d.filmDuration}s)` : '';
+  const langLabel = d.primaryLang
+    ? esc(d.primaryLang) + (d.contemporary ? ` — Contemporary: ${d.contempSpec ? esc(d.contempSpec) : 'yes'}` : '')
+    : '';
+  const generatedOn = new Date().toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  // Show admin unlock panel if in admin mode
-  if(isAdmin) document.getElementById('adminUnlockPanel').style.display = 'block';
+  const wrapper = document.createElement('div');
+  wrapper.style.padding = '40px';
+  wrapper.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  wrapper.style.color = '#333';
+  wrapper.style.backgroundColor = '#fff';
+  wrapper.style.width = '800px';
 
-  // Mark as submitted locally
-  localStorage.setItem('aic_spec_submitted', 'true');
-  localStorage.setItem('aic_spec_locked_at', now.toISOString());
+  wrapper.innerHTML = `
+    <div style="text-align:center; margin-bottom:22px; padding-bottom:18px; border-bottom:2px solid #111;">
+      <h1 style="font-size:27px; margin:0 0 6px; color:#111; font-weight:600;">Production Spec Sheet</h1>
+      <div style="font-size:13px; color:#888; letter-spacing:0.12em; text-transform:uppercase;">AI Collective</div>
+      <div style="font-size:11px; color:#aaa; margin-top:8px;">
+        Project ID: ${esc(d.id || '—')} &nbsp;·&nbsp; Generated: ${generatedOn}
+      </div>
+    </div>
+
+    <div style="background:#fff8e6; border:1px solid #f0d98a; border-radius:8px; padding:12px 16px; margin-bottom:8px; font-size:12.5px; color:#7a5c00; line-height:1.5;">
+      <b>Client review copy.</b> Please recheck every detail below and confirm the information you provided is accurate.
+      Fields marked <span style="color:#c0392b;font-style:italic;">— not provided —</span> were left blank. Reply with any corrections before we go into production.
+    </div>
+
+    ${heading('Project Basics')}
+    ${row('Date', d.date)}
+    ${row('Client', d.client)}
+    ${row('Brand / Product', d.brand)}
+    ${row('Project Title', d.projectTitle)}
+
+    ${heading('Points of Contact')}
+    ${row('Client SPOC — Name', d.spocCN)}
+    ${row('Client SPOC — Phone', d.spocCP)}
+    ${row('Client SPOC — Email', d.spocCE)}
+    ${row('Agency SPOC — Name', d.spocAN)}
+    ${row('Agency SPOC — Phone', d.spocAP)}
+    ${row('Agency SPOC — Email', d.spocAE)}
+    ${row('Internal SPOC (AiC) — Name', d.spocIN)}
+    ${row('Internal SPOC (AiC) — Phone', d.spocIP)}
+    ${row('Internal SPOC (AiC) — Email', d.spocIE)}
+
+    ${heading('Deliverable Specs')}
+    ${row('Publishing Rights', d.pubRights)}
+    ${row('No. of Films', d.numFilms)}
+    ${row('Resolution', d.resolution)}
+    ${row('Primary Language', langLabel, true)}
+    ${row('Other Dubbed Versions', dubbed)}
+
+    ${heading('Master Film')}
+    ${row('Master Film Duration', durationLabel, true)}
+    ${row('No. of Down Edits', d.numDownEdits)}
+    ${row('Master Aspect Ratio', d.masterAR)}
+    ${row('Adapts To (Aspect Ratios)', d.adaptAR)}
+    ${row('Down-Edit Aspect Ratios', d.downEditAR)}
+
+    ${heading('Subtitles')}
+    ${row('Subtitles Required', d.subtitle ? 'Yes' : 'No', true)}
+    ${row('Subtitle Size', d.subtitle ? (d.subtitleSize ? d.subtitleSize + 'px' : '') : 'N/A', true)}
+    ${row('Subtitle Font', d.subtitle ? d.subtitleFont : 'N/A', true)}
+    ${row('Subtitle Style', d.subtitle ? d.subtitleStyle : 'N/A', true)}
+
+    ${heading('Brand Identity')}
+    ${row('Brand Colour', `<span style="display:inline-block;width:14px;height:14px;background:${esc(d.brandColor || '#fff')};border:1px solid #ccc;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>${d.brandColor ? esc(d.brandColor) : BLANK}`, true)}
+    ${row('Logo Placement', d.logoPos)}
+    ${row('Brand Logo File', fileName(d.logoFile))}
+    ${row('Product Packaging File', fileName(d.packFile))}
+    ${row('Brand Font File', fileName(d.fontFile))}
+
+    <div style="page-break-before:always;"></div>
+
+    ${heading('Production Pipeline')}
+    <div style="padding:4px 0 8px;">${pipelineHtml}</div>
+
+    ${heading('Additional Notes')}
+    ${scriptBlock(d.additionalNotes)}
+
+    ${heading('Master Film Script')}
+    ${row('Uploaded Script File', fileName(d.masterScriptFile))}
+    <div style="height:12px;"></div>
+    ${scriptBlock(d.masterScript)}
+
+    ${heading('Down-Edit Scripts')}
+    ${downEdits.length
+      ? downEdits.map((s, i) => `<div style="margin-bottom:8px; font-weight:600; color:#555; font-size:12.5px;">Down-Edit ${i + 1}</div>${scriptBlock(s)}`).join('')
+      : `<div style="font-size:13px; color:#111; padding:6px 0;">${BLANK}</div>`}
+
+    ${heading('Client Confirmation')}
+    <div style="font-size:12.5px; color:#444; line-height:1.6; margin-bottom:24px;">
+      I confirm that the details recorded in this spec sheet are accurate and approve them for production.
+    </div>
+    <div style="display:flex; gap:40px; margin-top:36px;">
+      <div style="flex:1;"><div style="border-bottom:1px solid #333; height:34px;"></div><div style="font-size:11px; color:#888; margin-top:6px;">Client name &amp; signature</div></div>
+      <div style="flex:1;"><div style="border-bottom:1px solid #333; height:34px;"></div><div style="font-size:11px; color:#888; margin-top:6px;">Date</div></div>
+    </div>
+
+    <div style="margin-top:40px; padding-top:14px; border-top:1px solid #eaeaea; text-align:center; font-size:10.5px; color:#aaa;">
+      Generated by AI Collective — Production Spec Sheet · ${generatedOn}
+    </div>
+  `;
+
+  const safeName = (d.brand || d.client || 'Production')
+    .replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'Production';
+
+  const opt = {
+    margin:       [10, 10, 12, 10],
+    filename:     `Spec-Sheet-${safeName}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak:    { mode: ['css', 'legacy'], avoid: ['h2'] }
+  };
+
+  // Render the document ON-SCREEN, in normal document flow, as the ONLY visible
+  // element at the top of <body>. Failure modes ruled out this way:
+  //   • off-screen / negative z-index      -> blank canvas
+  //   • position:absolute root element     -> html2canvas collapses to 0 height
+  //   • inside a position:fixed scroller    -> phantom gap at the top of page 1
+  // In-flow layout gives html2canvas the correct height, and having nothing
+  // above it keeps the content flush to the top of the first page.
+  const hidden = [];
+  [...document.body.children].forEach(c => {
+    if (c.style.display !== 'none') { hidden.push([c, c.style.display]); c.style.display = 'none'; }
+  });
+  wrapper.style.margin = '0 auto';
+  wrapper.style.background = '#fff';
+  document.body.appendChild(wrapper);
+  const prevScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
+  const cleanup = () => {
+    if (btn) { btn.textContent = oldText; btn.disabled = false; }
+    if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+    hidden.forEach(([c, d]) => { c.style.display = d; });
+    window.scrollTo(0, prevScrollY);
+  };
+
+  // ── Generate, SELF-VERIFY, then download ───────────────────────────
+  // 1. Render to canvas first and check it actually contains ink — an
+  //    all-white canvas means the capture failed; never save that.
+  // 2. Build the PDF and sanity-check blob size + page count.
+  // 3. Download via an explicit blob link (more reliable than save()).
+  // If ANY step fails, fall back to the browser's print dialog where the
+  // user picks "Save as PDF" — so a document is always produced.
+  try {
+    if (typeof html2pdf !== 'function') throw new Error('html2pdf library not loaded');
+
+    const worker = html2pdf().set(opt).from(wrapper);
+    await worker.toCanvas();
+    const canvas = worker.prop.canvas;
+    if (!canvas || !canvas.width || !canvas.height) throw new Error('Rendered canvas has zero size');
+
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let ink = 0;
+    for (let i = 0; i < img.length; i += 4 * 199) {
+      if (img[i] < 245 || img[i + 1] < 245 || img[i + 2] < 245) { ink++; if (ink > 50) break; }
+    }
+    if (ink <= 50) throw new Error('Rendered canvas is blank');
+
+    const blob = await worker.toPdf().outputPdf('blob');
+    const pages = worker.prop.pdf.internal.getNumberOfPages();
+    if (!blob || blob.size < 20000 || pages < 1) {
+      throw new Error('PDF output invalid (' + (blob ? blob.size : 0) + ' bytes, ' + pages + ' pages)');
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = opt.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    cleanup();
+  } catch (err) {
+    console.error('PDF generation failed, opening print fallback:', err);
+    const docHtml = wrapper.innerHTML;
+    cleanup();
+    printFallback(docHtml);
+  }
+}
+
+// Fallback path: open the spec sheet in a print window — the user chooses
+// "Save as PDF" as the printer destination. The browser's own renderer
+// produces a perfect vector PDF of the same document.
+function printFallback(innerHtml) {
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert('Could not generate the PDF automatically, and the pop-up for the print fallback was blocked.\nPlease allow pop-ups for this site and try again.');
+    return;
+  }
+  w.document.write('<!DOCTYPE html><html><head><title>Production Spec Sheet</title>'
+    + '<style>'
+    + 'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#333;}'
+    + '.sheet{width:800px;margin:0 auto;padding:40px;}'
+    + '@media print{.sheet{width:auto;padding:0;} h2{page-break-after:avoid;}}'
+    + '@page{size:A4 portrait;margin:12mm;}'
+    + '</style></head><body>'
+    + '<div class="sheet">' + innerHtml + '</div>'
+    + '<scr' + 'ipt>window.onload=function(){window.focus();window.print();};</scr' + 'ipt>'
+    + '</body></html>');
+  w.document.close();
 }
 
 async function adminUnlock(){
