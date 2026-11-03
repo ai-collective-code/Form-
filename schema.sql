@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS `spec_sheets` (
   `subtitle_size` INT DEFAULT NULL,
   `subtitle_font` VARCHAR(100) DEFAULT NULL,
   `subtitle_style` VARCHAR(50) DEFAULT NULL,
+  `subtitle_lang` VARCHAR(50) DEFAULT NULL,
+  `subtitle_script` VARCHAR(20) DEFAULT NULL,
   
   -- Files
   `logo_file` VARCHAR(255) DEFAULT NULL,

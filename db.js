@@ -50,6 +50,19 @@ async function initDatabase() {
         await dbConnection.query(query);
       }
       
+      // Add columns introduced after the first release to databases that already exist
+      const addedColumns = [
+        'ALTER TABLE spec_sheets ADD COLUMN subtitle_lang VARCHAR(50) DEFAULT NULL',
+        'ALTER TABLE spec_sheets ADD COLUMN subtitle_script VARCHAR(20) DEFAULT NULL'
+      ];
+      for (const query of addedColumns) {
+        try {
+          await dbConnection.query(query);
+        } catch (err) {
+          if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+        }
+      }
+
       await dbConnection.end();
       console.log('Database initialized successfully.');
     }

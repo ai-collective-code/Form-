@@ -74,10 +74,10 @@ app.post('/api/spec', async (req, res) => {
       master_script, master_script_file,
       num_films, resolution, primary_lang, contemporary, contemp_spec,
       film_duration, num_down_edits, master_ar, logo_pos, brand_color,
-      subtitle, subtitle_size, subtitle_font, subtitle_style,
+      subtitle, subtitle_size, subtitle_font, subtitle_style, subtitle_lang, subtitle_script,
       logo_file, pack_file, font_file, additional_notes,
       pipeline, adapt_ar, down_edit_ar, pub_rights, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       date = VALUES(date),
       client = VALUES(client),
@@ -108,6 +108,8 @@ app.post('/api/spec', async (req, res) => {
       subtitle_size = VALUES(subtitle_size),
       subtitle_font = VALUES(subtitle_font),
       subtitle_style = VALUES(subtitle_style),
+      subtitle_lang = VALUES(subtitle_lang),
+      subtitle_script = VALUES(subtitle_script),
       logo_file = VALUES(logo_file),
       pack_file = VALUES(pack_file),
       font_file = VALUES(font_file),
@@ -131,6 +133,7 @@ app.post('/api/spec', async (req, res) => {
     d.masterAR || null, d.logoPos || null, d.brandColor || null,
     d.subtitle ? 1 : 0, d.subtitleSize ? parseInt(d.subtitleSize) : null,
     d.subtitleFont || null, d.subtitleStyle || null,
+    d.subtitleLang || null, d.subtitleScript || null,
     d.logoFile || null, d.packFile || null, d.fontFile || null,
     d.additionalNotes || null,
     pipeline, adaptAR, downEditAR, pubRights,

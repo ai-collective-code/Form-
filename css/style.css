@@ -87,6 +87,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .ar-card{border:1.5px solid #e0ddd6;border-radius:10px;padding:10px 8px 8px;cursor:pointer;text-align:center;background:#fff;transition:all .15s;position:relative}
 .ar-card:hover{border-color:#aaa}
 .ar-card.selected{border-color:#1a1a1a;background:#eeece6}
+.ar-grid-capped .ar-card:not(.selected){opacity:.45;cursor:not-allowed}
 .ar-card svg{display:block;margin:0 auto 6px}
 .ar-card .ar-label{font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:2px}
 .ar-card .ar-platform{font-size:10px;color:#888;line-height:1.3}

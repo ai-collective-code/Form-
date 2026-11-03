@@ -163,7 +163,7 @@
     </div>
     <div class="field">
       <label>No. of down edits</label>
-      <select id="numDownEdits"><option value="">Select</option><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option></select>
+      <select id="numDownEdits" onchange="updateDownEditCap(true)"><option value="">Select</option><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option></select>
     </div>
   </div>
 
@@ -185,7 +185,7 @@
 
   <div class="field" style="margin-top:24px">
     <label>Down edit aspect ratios</label>
-    <div class="hint">Select all cut-down formats needed.</div>
+    <div class="hint" id="downEditARHint">Select all cut-down formats needed. Choose "No. of down edits" above to set a limit.</div>
     <div class="ar-grid" id="downEditARGrid"></div>
   </div>
 </div>
@@ -214,9 +214,50 @@
       <input type="range" min="12" max="36" value="20" id="subtitleSize" oninput="updateSubPreview()">
       <div class="sub-preview-frame" style="aspect-ratio:16/9">
         <div class="scene-bg"><span style="color:rgba(255,255,255,.08);font-size:13px">film frame</span></div>
-        <div class="sub-text-demo" id="subDemo" style="font-size:20px;background:rgba(0,0,0,.55)">यह आपके सब्टाइटल का प्रीव्यू है — This is your subtitle preview</div>
+        <div class="sub-text-demo" id="subDemo" style="font-size:20px;background:rgba(0,0,0,.55)">यह आपके सब्टाइटल का प्रीव्यू है</div>
       </div>
       <p style="font-size:12px;color:#999;margin-top:6px">Size: <strong id="subSizeLbl">20px</strong></p>
+      <p id="subSampleNote" style="display:none;font-size:12px;color:#999;margin-top:4px">No sample text for this language yet — the preview shows English. Your language choice is still saved.</p>
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Native language</label>
+        <div class="hint">Language the subtitles are written in.</div>
+        <select id="subtitleLang" onchange="updateSubPreview()">
+          <option value="English">English</option>
+          <option value="Hindi" selected>Hindi — हिन्दी</option>
+          <option value="Assamese">Assamese — অসমীয়া</option>
+          <option value="Bengali">Bengali — বাংলা</option>
+          <option value="Bodo">Bodo — बड़ो</option>
+          <option value="Dogri">Dogri — डोगरी</option>
+          <option value="Gujarati">Gujarati — ગુજરાતી</option>
+          <option value="Kannada">Kannada — ಕನ್ನಡ</option>
+          <option value="Kashmiri">Kashmiri — کٲشُر</option>
+          <option value="Konkani">Konkani — कोंकणी</option>
+          <option value="Maithili">Maithili — मैथिली</option>
+          <option value="Malayalam">Malayalam — മലയാളം</option>
+          <option value="Manipuri">Manipuri (Meitei) — ꯃꯩꯇꯩꯂꯣꯟ</option>
+          <option value="Marathi">Marathi — मराठी</option>
+          <option value="Nepali">Nepali — नेपाली</option>
+          <option value="Odia">Odia — ଓଡ଼ିଆ</option>
+          <option value="Punjabi">Punjabi — ਪੰਜਾਬੀ</option>
+          <option value="Sanskrit">Sanskrit — संस्कृतम्</option>
+          <option value="Santali">Santali — ᱥᱟᱱᱛᱟᱲᱤ</option>
+          <option value="Sindhi">Sindhi — سنڌي</option>
+          <option value="Tamil">Tamil — தமிழ்</option>
+          <option value="Telugu">Telugu — తెలుగు</option>
+          <option value="Urdu">Urdu — اردو</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Subtitle script</label>
+        <div class="hint">Native script, Roman letters, or both lines stacked.</div>
+        <select id="subtitleScriptSel" onchange="updateSubPreview()">
+          <option value="native">Native script</option>
+          <option value="roman">Roman (English letters)</option>
+          <option value="both">Both — native + Roman</option>
+        </select>
+      </div>
     </div>
     <div class="two-col">
       <div class="field">

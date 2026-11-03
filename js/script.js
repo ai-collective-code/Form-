@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildARGrid('masterARGrid', true, false);
   buildARGrid('adaptARGrid', false, true);
   buildARGrid('downEditARGrid', false, true);
+  updateDownEditCap(false);
   buildAIGrid();
   buildLogoPosGrid();
   initSearchSelect('primaryLang', INDIAN_LANGUAGES);
@@ -193,7 +194,44 @@ function selectMasterAR(el,val){
   selectedMasterAR=val;
   buildLogoPosGrid();
 }
-function toggleAR(el){el.classList.toggle('selected')}
+function toggleAR(el){
+  if(el.parentElement.id==='downEditARGrid'&&!el.classList.contains('selected')){
+    const cap=downEditCap();
+    if(cap!==null&&downEditSelected().length>=cap){
+      updateDownEditCap(false,true);
+      return;
+    }
+  }
+  el.classList.toggle('selected');
+  if(el.parentElement.id==='downEditARGrid')updateDownEditCap(false);
+}
+
+// Down-edit aspect ratios are limited by "No. of down edits": null = no limit yet (not chosen, or 6+)
+function downEditCap(){
+  const v=document.getElementById('numDownEdits').value;
+  if(v===''||v==='6+')return null;
+  return parseInt(v,10);
+}
+function downEditSelected(){
+  return [...document.querySelectorAll('#downEditARGrid .ar-card.selected')];
+}
+function updateDownEditCap(trim,warn){
+  const cap=downEditCap();
+  const hint=document.getElementById('downEditARHint');
+  let note='';
+  if(trim&&cap!==null){
+    const extra=downEditSelected().slice(cap);
+    extra.forEach(c=>c.classList.remove('selected'));
+    if(extra.length)note=` ${extra.length} format${extra.length>1?'s were':' was'} deselected to fit.`;
+  }
+  const n=downEditSelected().length;
+  const grid=document.getElementById('downEditARGrid');
+  grid.classList.toggle('ar-grid-capped',cap!==null&&n>=cap);
+  if(cap===null)hint.textContent='Select all cut-down formats needed. Choose "No. of down edits" above to set a limit.';
+  else if(cap===0)hint.textContent='No down edits chosen — change "No. of down edits" above to pick cut-down formats.';
+  else hint.textContent=`Select up to ${cap} cut-down format${cap>1?'s':''} (${n} of ${cap} selected).`+note;
+  hint.style.color=warn?'#c0392b':(note?'#b9770e':'');
+}
 
 // ─────────────────────────────────────────────
 // LOGO POSITION WITH BEST PRACTICES
@@ -422,12 +460,45 @@ function toggleSubtitles(checked){
   document.getElementById('subToggleLbl').textContent=checked?'Yes':'No';
   document.getElementById('subtitleSection').style.display=checked?'block':'none';
 }
+const SUB_SAMPLES={
+  Hindi:{native:'यह आपके सब्टाइटल का प्रीव्यू है',roman:'Yeh aapke subtitle ka preview hai'},
+  Bengali:{native:'এটি আপনার সাবটাইটেলের প্রিভিউ',roman:'Eti apnar subtitle-er preview'},
+  Tamil:{native:'இது உங்கள் வசனத்தின் முன்னோட்டம்',roman:'Idhu ungal subtitle-in munnottam'},
+  Telugu:{native:'ఇది మీ సబ్‌టైటిల్ ప్రివ్యూ',roman:'Idi mee subtitle preview'},
+  Marathi:{native:'हे तुमच्या सबटायटलचे पूर्वावलोकन आहे',roman:'He tumchya subtitle che purvavalokan aahe'},
+  Gujarati:{native:'આ તમારા સબટાઇટલનું પ્રીવ્યૂ છે',roman:'Aa tamara subtitle nu preview chhe'},
+  Kannada:{native:'ಇದು ನಿಮ್ಮ ಸಬ್‌ಟೈಟಲ್ ಪ್ರಿವ್ಯೂ',roman:'Idu nimma subtitle preview'},
+  Malayalam:{native:'ഇത് നിങ്ങളുടെ സബ്ടൈറ്റിൽ പ്രിവ്യൂ ആണ്',roman:'Ithu ningalude subtitle preview aanu'},
+  Punjabi:{native:'ਇਹ ਤੁਹਾਡੇ ਸਬਟਾਈਟਲ ਦਾ ਪ੍ਰੀਵਿਊ ਹੈ',roman:'Eh tuhade subtitle da preview hai'},
+  English:{native:'This is your subtitle preview',roman:'This is your subtitle preview'},
+  Assamese:{native:'এইটো আপোনাৰ ছাবটাইটেলৰ প্ৰিভিউ',roman:'Eitu aponar subtitle-ar preview'},
+  Dogri:{native:'एह् तुंदे सबटाइटल दा प्रीव्यू ऐ',roman:'Eh tunde subtitle da preview ai'},
+  Konkani:{native:'हें तुमच्या सबटायटलाचें प्रिव्ह्यू',roman:'Hem tumchya subtitlache preview'},
+  Maithili:{native:'ई अहाँक सबटाइटलक प्रीव्यू अछि',roman:'Ee ahank subtitlak preview achhi'},
+  Nepali:{native:'यो तपाईंको सबटाइटलको पूर्वावलोकन हो',roman:'Yo tapaiko subtitle ko purvavalokan ho'},
+  Odia:{native:'ଏହା ଆପଣଙ୍କ ସବ୍‌ଟାଇଟଲ୍‌ର ପ୍ରିଭ୍ୟୁ',roman:'Eha apanka subtitle-ra preview'},
+  Sanskrit:{native:'एतत् भवतः उपशीर्षकस्य पूर्वावलोकनम् अस्ति',roman:'Etat bhavatah upashirshakasya purvavalokanam asti'},
+  Sindhi:{native:'هي توهان جي سب ٽائيٽل جو پريويو آهي',roman:'Hi tavhan ji subtitle jo preview aahe',rtl:true},
+  Urdu:{native:'یہ آپ کے سب ٹائٹل کا پیش منظر ہے',roman:'Yeh aapke subtitle ka preview hai',rtl:true}
+};
+// Bodo, Kashmiri, Manipuri and Santali have no sample text yet; the preview falls back to English for them
+const SUB_NO_SAMPLE=['Bodo','Kashmiri','Manipuri','Santali'];
+const SUB_SCRIPT_LABELS={native:'Native script',roman:'Roman',both:'Native + Roman'};
 function updateSubPreview(){
   const size=document.getElementById('subtitleSize').value;
   const font=document.getElementById('subtitleFont').value;
   const style=document.getElementById('subtitleStyleSel').value;
+  const lang=document.getElementById('subtitleLang').value;
+  const script=document.getElementById('subtitleScriptSel').value;
+  const noSample=SUB_NO_SAMPLE.includes(lang);
+  const sample=noSample?SUB_SAMPLES.English:(SUB_SAMPLES[lang]||SUB_SAMPLES.Hindi);
   const demo=document.getElementById('subDemo');
   document.getElementById('subSizeLbl').textContent=size+'px';
+  document.getElementById('subSampleNote').style.display=noSample?'block':'none';
+  demo.textContent='';
+  let kinds=script==='both'?['native','roman']:[script];
+  if(kinds.length>1&&sample.native===sample.roman)kinds=['native'];
+  kinds.forEach(k=>{const l=document.createElement('div');l.textContent=sample[k];l.dir=sample.rtl&&k==='native'?'rtl':'ltr';demo.appendChild(l);});
   demo.style.fontSize=size+'px';
   demo.style.fontFamily=font;
   if(style==='box'){demo.style.background='rgba(0,0,0,.6)';demo.style.color='#fff';demo.style.webkitTextStroke='';}
@@ -542,6 +613,8 @@ function collectFormData(){
     subtitleSize:document.getElementById('subtitleSize').value,
     subtitleFont:document.getElementById('subtitleFont').value,
     subtitleStyle:document.getElementById('subtitleStyleSel').value,
+    subtitleLang:document.getElementById('subtitleLang').value,
+    subtitleScript:document.getElementById('subtitleScriptSel').value,
     logoFile:uploadedFiles.logoFile,
     packFile:uploadedFiles.packFile,
     fontFile:uploadedFiles.fontFile,
@@ -696,6 +769,13 @@ function populateForm(d) {
   
   const subtitleStyleVal = d.subtitleStyle || d.subtitle_style;
   if (subtitleStyleVal) document.getElementById('subtitleStyleSel').value = subtitleStyleVal;
+
+  const subtitleLangVal = d.subtitleLang || d.subtitle_lang;
+  if (subtitleLangVal) document.getElementById('subtitleLang').value = subtitleLangVal;
+
+  const subtitleScriptVal = d.subtitleScript || d.subtitle_script;
+  if (subtitleScriptVal) document.getElementById('subtitleScriptSel').value = subtitleScriptVal;
+  updateSubPreview();
   
   const contemporaryVal = d.contemporary;
   if (contemporaryVal) {
@@ -731,6 +811,7 @@ function populateForm(d) {
       c.classList.toggle('selected', downEditARVal.includes(c.dataset.val));
     });
   }
+  updateDownEditCap(false);
 
   const pubRightsVal = d.pubRights || d.pub_rights;
   if (pubRightsVal && Array.isArray(pubRightsVal)) {
@@ -1006,6 +1087,8 @@ async function confirmAndSend(ev) {
     ${row('Subtitle Size', d.subtitle ? (d.subtitleSize ? d.subtitleSize + 'px' : '') : 'N/A', true)}
     ${row('Subtitle Font', d.subtitle ? d.subtitleFont : 'N/A', true)}
     ${row('Subtitle Style', d.subtitle ? d.subtitleStyle : 'N/A', true)}
+    ${row('Subtitle Language', d.subtitle ? d.subtitleLang : 'N/A', true)}
+    ${row('Subtitle Script', d.subtitle ? (SUB_SCRIPT_LABELS[d.subtitleScript] || d.subtitleScript) : 'N/A', true)}
 
     ${heading('Brand Identity')}
     ${row('Brand Colour', `<span style="display:inline-block;width:14px;height:14px;background:${esc(d.brandColor || '#fff')};border:1px solid #ccc;border-radius:3px;vertical-align:middle;margin-right:8px;"></span>${d.brandColor ? esc(d.brandColor) : BLANK}`, true)}
@@ -1282,6 +1365,7 @@ function compareSpec(snapshot, current) {
     num_down_edits: 'numDownEdits', master_ar: 'masterAR', logo_pos: 'logoPos',
     brand_color: 'brandColor', subtitle: 'subtitle', subtitle_size: 'subtitleSize',
     subtitle_font: 'subtitleFont', subtitle_style: 'subtitleStyle',
+    subtitle_lang: 'subtitleLang', subtitle_script: 'subtitleScript',
     additional_notes: 'additionalNotes'
   };
 
